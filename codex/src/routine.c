@@ -1,28 +1,10 @@
 #include "codex.h"
 
-static int	wait_for_dongle(t_coder *coder, t_dongle *dongle)
+static int	is_available_for(t_dongle *dongle, t_coder *coder)
 {
-	struct timespec	ts;
-
-	pthread_mutex_lock(&dongle->mutex);
-	while (!dongle->available || current_time_ms() < dongle->available_at
-		|| queue_front(&dongle->waiters) != coder)
-	{
-		if (!simulation_running(coder->sim))
-			return (pthread_mutex_unlock(&dongle->mutex), 1);
-		ts.tv_sec = dongle->available_at / 1000;
-		ts.tv_nsec = (dongle->available_at % 1000) * 1000000;
-		if (!dongle->available || queue_front(&dongle->waiters) != coder)
-			pthread_cond_wait(&dongle->cond, &dongle->mutex);
-		if (!simulation_running(coder->sim))
-			return (pthread_mutex_unlock(&dongle->mutex), 1);
-		if (current_time_ms() < dongle->available_at)
-			pthread_cond_timedwait(&dongle->cond, &dongle->mutex, &ts);
-	}
-	queue_pop(&dongle->waiters);
-	dongle->available = 0;
-	pthread_mutex_unlock(&dongle->mutex);
-	return (0);
+	return (dongle->available
+		&& current_time_ms() >= dongle->available_at
+		&& queue_front(&dongle->waiters) == coder);
 }
 
 static int	take_dongles(t_coder *coder)
@@ -37,18 +19,38 @@ static int	take_dongles(t_coder *coder)
 	pthread_mutex_lock(&coder->right->mutex);
 	queue_push(&coder->right->waiters, coder, priority);
 	pthread_mutex_unlock(&coder->right->mutex);
-	if (wait_for_dongle(coder, coder->left))
-		return (1);
-	if (!log_action(coder, "has taken a dongle"))
-		return (1);
-	if (wait_for_dongle(coder, coder->right))
+	if (coder->left == coder->right)
 	{
-		release_dongle(coder->left, coder->sim);
+		while (simulation_running(coder->sim))
+			usleep(500);
 		return (1);
 	}
-	if (!log_action(coder, "has taken a dongle"))
-		return (1);
-	return (0);
+	while (simulation_running(coder->sim))
+	{
+		pthread_mutex_lock(&coder->left->mutex);
+		if (is_available_for(coder->left, coder))
+		{
+			pthread_mutex_lock(&coder->right->mutex);
+			if (is_available_for(coder->right, coder))
+			{
+				coder->left->available = 0;
+				coder->right->available = 0;
+				queue_pop(&coder->left->waiters);
+				queue_pop(&coder->right->waiters);
+				pthread_mutex_unlock(&coder->right->mutex);
+				pthread_mutex_unlock(&coder->left->mutex);
+				if (!log_action(coder, "has taken a dongle"))
+					return (1);
+				if (!log_action(coder, "has taken a dongle"))
+					return (1);
+				return (0);
+			}
+			pthread_mutex_unlock(&coder->right->mutex);
+		}
+		pthread_mutex_unlock(&coder->left->mutex);
+		usleep(500);
+	}
+	return (1);
 }
 
 static void	release_dongles(t_coder *coder)

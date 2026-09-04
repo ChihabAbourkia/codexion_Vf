@@ -38,6 +38,12 @@ static int	init_coders(t_systeme *sys)
 		sys->coders[i].sim = sys;
 		sys->coders[i].left = &sys->dongles[i];
 		sys->coders[i].right = &sys->dongles[(i + 1) % sys->params.nb_coders];
+		if (i == (sys->params.nb_coders - 1))
+		{
+			sys->coders[i].left = &sys->dongles[(i + 1)
+				% sys->params.nb_coders];
+			sys->coders[i].right = &sys->dongles[i];
+		}
 		i++;
 	}
 	return (0);
