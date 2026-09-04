@@ -43,9 +43,9 @@ void queue_pop(t_queue *queue)
         queue->size--;
     }
 }
-t_coder* queue_front(t_queue *queue)
+int queue_front(t_queue *queue)
 {
     if(queue->size == 0)
-        return NULL;
-    return queue->requests[0].coder;
+        return -1;
+    return queue->requests[0].coder->id;
 }

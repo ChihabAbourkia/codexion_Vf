@@ -99,7 +99,7 @@ void    release_dongle(t_dongle *dongle, t_systeme *sim);
 long    get_priority(t_coder *coder);
 void    queue_push(t_queue *q, t_coder *coder, long priority);
 void    queue_pop(t_queue *q);
-t_coder *queue_front(t_queue *q);
+int     queue_front(t_queue *q);
 
 /*logger.c*/
 int     log_action(t_coder *coder, char *msg);
